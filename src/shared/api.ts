@@ -42,6 +42,7 @@ export type PaginatedResponse<T> = {
   items: number;
   last: number;
   next: number | null;
+  page: number;
   pages: number;
   prev: number | null;
 };
@@ -54,14 +55,19 @@ export function fetchTasks({
 }: {
   page?: number;
   per_page?: number;
-  filters?: { userId?: string };
+  filters?: {
+    userId?: string;
+    title?: string;
+  };
   sort?: { createdAt: "asc" | "desc" };
 }) {
   return fetch(
     `http://localhost:3001/tasks?_page=${page}&_per_page=${per_page}&_sort=${
       sort.createdAt === "asc" ? "createdAt" : "-createdAt"
-    }&_userId=${filters?.userId}`
-  ).then((res) => res.json() as Promise<PaginatedResponse<Task>>);
+    }&_userId=${filters?.userId}&_title=${filters?.title}`
+  )
+    .then((res) => res.json() as Promise<PaginatedResponse<Task>>)
+    .then((r) => ({ ...r, page }));
 }
 
 export function createTask(task: Task) {

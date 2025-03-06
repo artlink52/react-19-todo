@@ -3,7 +3,9 @@ import {
   Suspense,
   use,
   useActionState,
+  useCallback,
   useMemo,
+  useRef,
   useState,
   useTransition,
 } from "react";
@@ -16,22 +18,62 @@ import { useUsersGlobal } from "../../entities/user";
 export function TodoListPage() {
   const { userId = "" } = useParams();
 
-  const [paginatedTasksPromise, setTasksPromise] = useState(() =>
-    fetchTasks({ filters: { userId } })
+  const [search, setSearch] = useState("");
+
+  const getTasks = useCallback(
+    async ({ page = 1, title = search }: { page?: number; title?: string }) =>
+      fetchTasks({ filters: { userId, title }, page }),
+    [userId, search]
   );
 
+  const [paginatedTasksPromise, setTasksPromise] = useState(() => getTasks({}));
+
   const refetchTasks = () =>
-    startTransition(() => setTasksPromise(fetchTasks({ filters: { userId } })));
+    startTransition(async () => {
+      const { page } = await paginatedTasksPromise;
+      setTasksPromise(getTasks({ page }));
+    });
+  const onPageChange = async (newPage: number) => {
+    setTasksPromise(
+      getTasks({
+        page: newPage,
+      })
+    );
+  };
 
   const tasksPromise = useMemo(
     () => paginatedTasksPromise.then((r) => r.data),
     [paginatedTasksPromise]
   );
 
+  const intervalRef = useRef(0);
+  const handleChangeSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearch(e.target.value);
+
+    if (intervalRef.current) {
+      clearTimeout(intervalRef.current);
+    }
+
+    intervalRef.current = setTimeout(() => {
+      startTransition(() => {
+        setTasksPromise(getTasks({ title: e.target.value }));
+      });
+    }, 1000);
+  };
+
   return (
     <main className="container mx-auto p-4 pt-10 flex flex-col gap-4">
       <h1 className="text-3xl font-bold underline">Tasks</h1>
       <CreateTaskForm userId={userId} refetchTasks={refetchTasks} />
+      <div className="flex gap-2">
+        <input
+          placeholder="Search"
+          type="text"
+          value={search}
+          className="border p-2 rounded"
+          onChange={handleChangeSearch}
+        />
+      </div>
       <ErrorBoundary
         fallbackRender={(e) => (
           <div className="text-red-500">
@@ -41,7 +83,10 @@ export function TodoListPage() {
       >
         <Suspense fallback={<div>Loading...</div>}>
           <TasksList tasksPromise={tasksPromise} refetchTasks={refetchTasks} />
-          <Pagination tasksPaginated={paginatedTasksPromise} page={1} />
+          <Pagination
+            tasksPaginated={paginatedTasksPromise}
+            onPageChange={onPageChange}
+          />
         </Suspense>
       </ErrorBoundary>
     </main>
@@ -56,17 +101,17 @@ function UserPreview({ userId }: { userId: string }) {
   return <span>{users.find((u) => u.id === userId)?.email}</span>;
 }
 
-function Pagination({
+function Pagination<T>({
   tasksPaginated,
-  page,
+
   onPageChange,
 }: {
-  tasksPaginated: Promise<PaginatedResponse<Task>>;
-  page: number;
+  tasksPaginated: Promise<PaginatedResponse<T>>;
+
   onPageChange?: (page: number) => void;
 }) {
   const [isLoading, startTransition] = useTransition();
-  const { last, next, prev, first, pages } = use(tasksPaginated);
+  const { last, next, prev, first, pages, page } = use(tasksPaginated);
 
   const handlePageChange = (page: number) => () => {
     startTransition(() => onPageChange?.(page));
