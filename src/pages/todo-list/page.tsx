@@ -3,7 +3,6 @@ import {
   Suspense,
   use,
   useActionState,
-  useCallback,
   useMemo,
   useRef,
   useState,
@@ -20,12 +19,13 @@ export function TodoListPage() {
 
   const [search, setSearch] = useState("");
 
-  const getTasks = useCallback(
-    async ({ page = 1, title = search }: { page?: number; title?: string }) =>
-      fetchTasks({ filters: { userId, title }, page }),
-    [userId, search]
-  );
-
+  const getTasks = async ({
+    page = 1,
+    title = search,
+  }: {
+    page?: number;
+    title?: string;
+  }) => fetchTasks({ filters: { userId, title }, page });
   const [paginatedTasksPromise, setTasksPromise] = useState(() => getTasks({}));
 
   const refetchTasks = () =>
